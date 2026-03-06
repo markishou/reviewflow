@@ -1,0 +1,21 @@
+{
+  "name": "reviewflow",
+  "version": "1.0.0",
+  "description": "AI Code Review Bottleneck Manager — intelligent PR routing and prioritization for teams using AI coding assistants.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/markishou/reviewflow.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/markishou/reviewflow/issues"
+  },
+  "homepage": "https://github.com/markishou/reviewflow#readme"
+}
