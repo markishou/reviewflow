@@ -4,7 +4,10 @@
   "description": "AI Code Review Bottleneck Manager — intelligent PR routing and prioritization for teams using AI coding assistants.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "migrate:up": "node -r dotenv/config node_modules/.bin/node-pg-migrate up --migration-dir migrations",
+    "migrate:down": "node -r dotenv/config node_modules/.bin/node-pg-migrate down --migration-dir migrations",
+    "migrate:create": "node-pg-migrate create --migration-dir migrations"
   },
   "repository": {
     "type": "git",
@@ -17,5 +20,12 @@
   "bugs": {
     "url": "https://github.com/markishou/reviewflow/issues"
   },
-  "homepage": "https://github.com/markishou/reviewflow#readme"
+  "homepage": "https://github.com/markishou/reviewflow#readme",
+  "dependencies": {
+    "node-pg-migrate": "^8.0.4",
+    "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "dotenv": "^17.3.1"
+  }
 }
