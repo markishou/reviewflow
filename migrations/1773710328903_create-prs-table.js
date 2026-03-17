@@ -41,7 +41,7 @@ exports.up = (pgm) => {
             type: "varchar(50)",
             notNull: true,
             default: "'open'",
-        }, 
+        },
         priority: {
             type: "varchar(20)",
             notNull: true,
