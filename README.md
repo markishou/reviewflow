@@ -15,12 +15,6 @@ ReviewFlow is a code review orchestration platform that sits between your Git pr
 - **Database:** Neon (Serverless PostgreSQL)
 - **Hosting:** S3 + CloudFront
 
-<!-- ## Setup
-
-1. Clone the repo
-2. Copy `.env.example` to `.env` and fill in your values
-3. See `/infra` for AWS setup scripts -->
-
 ## Status
 
 🚧 In active development
