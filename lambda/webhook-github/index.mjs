@@ -2,7 +2,7 @@ import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-sec
 import pg from 'pg';
 import crypto from 'crypto';
 import { analyzePr } from './shared/pr-analyzer.mjs';
-import { routPr } from './shared/routing-engine.mjs';
+import { routePr } from './shared/routing-engine.mjs';
 import { info, warn, error, withLogging } from './shared/logger.mjs';
 const { Pool } = pg;
 
@@ -227,7 +227,7 @@ async function handlePrOpened(dbPool, prId, pr, repo) {
 
     // Route the PR to a reviewer
     try {
-        await routPr(dbPool, prId, teamId, authorUserId);
+        await routePr(dbPool, prId, teamId, authorUserId);
     } catch (err) {
         warn('PR routing failed (non-fatal)', { pr_id: prId, error: err.message });
     }
