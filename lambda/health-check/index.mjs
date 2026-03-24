@@ -1,5 +1,6 @@
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import pg from 'pg';
+import { info, error, withLogging } from './shared/logger.mjs';
 const { Pool } = pg;
 
 let pool = null;
@@ -27,14 +28,14 @@ async function getPool() {
     });
 
     pool.on('error', (err) => {
-        console.error('Pool error:', err.message);
+        error('Pool error', { error: err.message });
         pool = null;
     });
 
     return pool;
 }
 
-export const handler = async (event) => {
+async function handlerFn(event) {
     const headers = {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*'
@@ -62,9 +63,12 @@ export const handler = async (event) => {
         `);
         checks.tables = tableResult.rows.map(r => r.table_name);
 
+        info('Health check passed', { database: 'ok', table_count: checks.tables.length });
+
     } catch (err) {
         checks.database = 'error';
         checks.db_error = err.message;
+        error('Health check database failed', { error: err.message });
     }
 
     return {
@@ -73,3 +77,5 @@ export const handler = async (event) => {
         body: JSON.stringify({ success: true, data: checks })
     };
 };
+
+export const handler = withLogging(handlerFn);

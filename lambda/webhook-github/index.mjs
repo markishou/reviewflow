@@ -1,7 +1,10 @@
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import pg from 'pg';
 import crypto from 'crypto';
+import { analyzePr } from './shared/pr-analyzer.mjs';
+import { info, warn, error, withLogging } from './shared/logger.mjs';
 const { Pool } = pg;
+
 
 let pool = null;
 let webhookSecret = null;
@@ -34,7 +37,7 @@ async function getPool() {
     });
 
     pool.on('error', (err) => {
-        console.error('Pool error:', err.message);
+        error('Pool error', { error: err.message });
         pool = null;
     });
 
@@ -59,7 +62,7 @@ function validateSignature(payload, signature, secret) {
   }
 }
 
-export const handler = async (event) => {
+async function handlerFn(event) {
     const headers = {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*'
@@ -81,7 +84,7 @@ export const handler = async (event) => {
     // Validate webhook signature
     const secret = await getWebhookSecret();
     if (!validateSignature(event.body, signature, secret)) {
-        console.error('[WEBHOOK] Invalid signature for delivery:', deliveryId);
+        error('Invalid webhook signature', { deliveryId });
         return {
             statusCode: 401,
             headers,
@@ -100,11 +103,11 @@ export const handler = async (event) => {
         };
     }
 
-    console.log('[WEBHOOK] Event:', githubEvent, 'Action:', body.action, 'Delivery:', deliveryId);
+    info('Webhook event received', { event: githubEvent, action: body.action, deliveryId });
 
     // Handle ping event (sent when webhook is first created)
     if (githubEvent === 'ping') {
-        console.log('[WEBHOOK] Ping received — webhook is active');
+        info('Ping received — webhook is active', { zen: body.zen });
         return {
             statusCode: 200,
             headers,
@@ -114,7 +117,7 @@ export const handler = async (event) => {
 
     // Only handle pull_request events for now
     if (githubEvent !== 'pull_request') {
-        console.log('[WEBHOOK] Ignoring event:', githubEvent);
+        info('Ignoring non-PR event', { event: githubEvent });
         return {
             statusCode: 200,
             headers,
@@ -149,10 +152,10 @@ export const handler = async (event) => {
                 await handlePrClosed(dbPool, prId, pr);
                 break;
             default:
-                console.log('[WEBHOOK] Unhandled PR action:', body.action);
+                info('Unhandled PR action', { action: body.action });
         }
     } catch (err) {
-        console.error('[WEBHOOK] Error processing:', err.message);
+        error('Error processing webhook', { error: err.message });
         return {
             statusCode: 500,
             headers,
@@ -168,7 +171,7 @@ export const handler = async (event) => {
 };
 
 async function handlePrOpened(dbPool, prId, pr, repo) {
-    console.log('[WEBHOOK] PR opened:', prId);
+    info('Processing PR opened', { pr_id: prId });
 
     // Find the team for this repo
     const teamResult = await dbPool.query(
@@ -177,7 +180,7 @@ async function handlePrOpened(dbPool, prId, pr, repo) {
     );
 
     if (teamResult.rows.length === 0) {
-        console.warn('[WEBHOOK] No team found for repo:', repo.full_name);
+        warn('No team found for repo', { repository: repo.full_name });
         return;
     }
 
@@ -211,11 +214,19 @@ async function handlePrOpened(dbPool, prId, pr, repo) {
         pr.html_url, pr.created_at
     ]);
 
-    console.log('[WEBHOOK] PR stored:', prId);
+    info('PR stored', { pr_id: prId });
+
+    const [owner, repoName] = repo.full_name.split('/');
+
+    try {
+        await analyzePr(dbPool, prId, owner, repoName, pr.number, null);
+    } catch (err) {
+        warn('PR analysis failed (non-fatal)', { error: err.message });
+    }
 }
 
 async function handlePrUpdated(dbPool, prId, pr) {
-    console.log('[WEBHOOK] PR updated:', prId);
+    info('Processing PR updated', { pr_id: prId });
 
     await dbPool.query(`
         UPDATE prs SET
@@ -226,7 +237,7 @@ async function handlePrUpdated(dbPool, prId, pr) {
 
 async function handlePrClosed(dbPool, prId, pr) {
     const newState = pr.merged ? 'merged' : 'closed';
-    console.log('[WEBHOOK] PR closed:', prId, '→', newState);
+    info('Processing PR closed', { pr_id: prId, new_state: newState });
 
     const updateFields = pr.merged
         ? 'state = $2, merged_at = NOW(), closed_at = NOW()'
@@ -237,3 +248,5 @@ async function handlePrClosed(dbPool, prId, pr) {
         [prId, newState]
     );
 }
+
+export const handler = withLogging(handlerFn);
