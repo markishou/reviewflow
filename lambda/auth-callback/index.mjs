@@ -1,6 +1,7 @@
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import pg from 'pg';
 import https from 'https';
+import { info, warn, error, withLogging } from './shared/logger.mjs';
 const { Pool } = pg;
 
 let pool = null;
@@ -34,7 +35,7 @@ async function getPool() {
     });
 
     pool.on('error', (err) => {
-        console.error('Pool error:', err.message);
+        error('Pool error', { error: err.message });
         pool = null;
     });
 
@@ -60,7 +61,7 @@ function httpsRequest(options, postData) {
     });
 }
 
-export const handler = async (event) => {
+async function handlerFn(event) {
     const headers = {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*'
@@ -99,11 +100,12 @@ export const handler = async (event) => {
         }));
 
         if (!tokenData.access_token) {
-            console.error('[AUTH] Token exchange failed:', tokenData);
+            warn('Token exchange failed', { tokenData: tokenData });
+            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
             return {
-                statusCode: 401,
-                headers,
-                body: JSON.stringify({success: false, error: 'Failed to authenticate with Github' })
+                statusCode: 302,
+                headers: { 'Location': `${frontendUrl}?auth_error=token_exchange_failed` },
+                body: ''
             };
         }
 
@@ -119,7 +121,7 @@ export const handler = async (event) => {
             }
         });
 
-        console.log('[AUTH] GitHub user fetched:', githubUser.login)
+        info('GitHub user fetched', { githubUser: githubUser.login });
 
         // Step 4: Upsert user in database
         const dbPool = await getPool();
@@ -142,30 +144,41 @@ export const handler = async (event) => {
         ]);
 
         const user = result.rows[0];
-        console.log('[AUTH] User upserted:', user.user_id);
+        info('User upserted', { user_id: user.user_id});
+
+        // Step 4: Redirect back to frontend with user data
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        
+        // Encode user data as a base64 JSON string for the URL
+        const userData = Buffer.from(JSON.stringify({
+        user: {
+            user_id: user.user_id,
+            github_username: user.github_username,
+            display_name: user.display_name,
+            avatar_url: user.avatar_url,
+            email: user.email,
+            team_id: user.team_id
+        },
+        github_token: tokenData.access_token
+        })).toString('base64');
 
         return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify({
-                success: true,
-                user: {
-                    user_id: user.user_id,
-                    github_username: user.github_username,
-                    display_name: user.display_name,
-                    avatar_url: user.avatar_url,
-                    email: user.email,
-                    team_id: user.team_id
-                },
-                github_token: tokenData.access_token
-            })
+            statusCode: 302,
+            headers: {
+                'Location': `${frontendUrl}?auth=${encodeURIComponent(userData)}`,
+                'Cache-Control': 'no-cache'
+            },
+            body: ''
         };
     } catch (err) {
-        console.error('[AUTH] OAuth flow failed:', err.message);
+        error('OAuth flow failed', { error: err.message });
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
         return {
-            statusCode: 500,
-            headers,
-            body: JSON.stringify({ success: false, error: 'Authentication failed' })
-        }
+            statusCode: 302,
+            headers: { 'Location': `${frontendUrl}?auth_error=${encodeURIComponent(err.message)}` },
+            body: ''
+        };
     }
 };
+
+export const handler = withLogging(handlerFn);
