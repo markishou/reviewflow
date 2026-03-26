@@ -11,9 +11,9 @@ const api = axios.create({
 
 // Add auth token to requests if available
 api.interceptors.request.use((config) => {
-    const token = localStorage.getItem('cognito_token');
+    const token = localStorage.getItem('session_token');
     if (token) {
-        config.headers.Authorization = token;
+        config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
 });

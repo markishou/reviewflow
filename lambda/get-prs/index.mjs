@@ -1,6 +1,7 @@
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import pg from 'pg';
 import { info, warn, withLogging } from './shared/logger.mjs';
+import { authenticateRequest, unauthorizedResponse } from './shared/auth.mjs';
 const { Pool } = pg;
 
 let pool = null;
@@ -35,6 +36,12 @@ async function handlerFn(event) {
         'Access-Control-Allow-Origin': '*'
     };
 
+    // Authenticate the request
+    const user = await authenticateRequest(event);
+    if (!user) {
+        return unauthorizedResponse('Invalid or missing session token');
+    }
+
     const params = event.queryStringParameters || {};
     const state = params.state || null;
     const priority = params.priority || null;
@@ -56,6 +63,12 @@ async function handlerFn(event) {
     if (priority) {
         conditions.push(`p.priority = $${paramIndex}`);
         values.push(priority);
+        paramIndex++;
+    }
+
+    if (user.team_id) {
+        conditions.push(`p.team_id = $${paramIndex}`);
+        values.push(user.team_id);
         paramIndex++;
     }
 
