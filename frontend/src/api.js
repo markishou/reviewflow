@@ -30,9 +30,15 @@ export const getGitHubAuthUrl = () => {
     const clientId = process.env.REACT_APP_GITHUB_CLIENT_ID;
     return `https://github.com/login/oauth/authorize?client_id=${clientId}&scope=repo,read:user`;
 }
-
 export const handleOAuthCallback = (code) => {
     api.get('/api/auth/github/callback', { params: { code } });
 }
+
+// Team management
+export const getMyTeam = () => api.get('/api/teams/me');
+export const createTeam = (teamName, githubOrg) =>
+    api.post('/api/teams', { team_name: teamName, github_org: githubOrg });
+export const connectRepo = (repositoryFullName) => 
+    api.post('/api/teams/repos', { repository_full_name: repositoryFullName });
 
 export default api;
