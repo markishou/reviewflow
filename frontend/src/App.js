@@ -20,6 +20,9 @@ function App() {
         if (decoded.user) {
           setUser(decoded.user);
           localStorage.setItem("reviewflow_user", JSON.stringify(decoded.user));
+          if (decoded.session_token) {
+            localStorage.setItem('session_token', decoded.session_token);
+          }
           if (decoded.github_token) {
             localStorage.setItem("github_token", decoded.github_token);
           }
@@ -51,6 +54,7 @@ function App() {
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem("reviewflow_user");
+    localStorage.removeItem('session_token');
     localStorage.removeItem("github_token");
     localStorage.removeItem("cognito_token");
   };

@@ -2,6 +2,7 @@ import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-sec
 import pg from 'pg';
 import https from 'https';
 import { info, warn, error, withLogging } from './shared/logger.mjs';
+import { signToken } from './shared/auth.mjs';
 const { Pool } = pg;
 
 let pool = null;
@@ -77,7 +78,7 @@ async function handlerFn(event) {
         }
     }
 
-    console.log('[AUTH] GitHub OAuth callback received');
+    info('GitHub OAuth callback received');
 
     try {
         // Step 1: Get GitHub OAuth credentials from Secrets Manager
@@ -146,7 +147,14 @@ async function handlerFn(event) {
         const user = result.rows[0];
         info('User upserted', { user_id: user.user_id});
 
-        // Step 4: Redirect back to frontend with user data
+        // Step 4: Generate a ReviewFlow session token (JWT)
+        const sessionToken = await signToken({
+            user_id: user.user_id,
+            github_username: user.github_username,
+            team_id: user.team_id || null,
+        });
+
+        // Step 6: Redirect back to frontend with user data
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
         
         // Encode user data as a base64 JSON string for the URL
@@ -159,6 +167,7 @@ async function handlerFn(event) {
             email: user.email,
             team_id: user.team_id
         },
+        session_token: sessionToken,
         github_token: tokenData.access_token
         })).toString('base64');
 
