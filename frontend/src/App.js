@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from "react";
+import { getMyTeam } from './api';
 import Login from "./components/Login";
+import Onboarding from './components/Onboarding';
 import Dashboard from "./components/Dashboard";
 import "./App.css";
 
 function App() {
   const [user, setUser] = useState(null);
+  const [hasTeam, setHasTeam] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,6 +29,8 @@ function App() {
           if (decoded.github_token) {
             localStorage.setItem("github_token", decoded.github_token);
           }
+          // Check if user has a team
+          setHasTeam(!!decoded.user.team_id);
         }
       } catch (err) {
           console.error("Failed to parse auth data:", err);
@@ -40,23 +45,51 @@ function App() {
     } else {
       // Check for existing session
       const savedUser = localStorage.getItem("reviewflow_user");
-      if (savedUser) {
+      const sessionToken = localStorage.getItem('session_token');
+      if (savedUser && sessionToken) {
         try {
-          setUser(JSON.parse(savedUser));
+          const parsed = JSON.parse(savedUser);
+          setUser(parsed);
+          getMyTeam()
+            .then((res) => {
+              const team = res.data?.data?.team;
+              setHasTeam(!!team);
+              if (team) {
+                // Update user with latest team_id
+                parsed.team_id = team.team_id;
+                setUser({ ...parsed });
+                localStorage.setItem('reviewflow_user', JSON.stringify(parsed));
+              }
+            })
+            .catch(() => {
+              setHasTeam(!!parsed.team_id);
+            })
+            .finally(() => setLoading(false));
         } catch (e) {
           localStorage.removeItem("reviewflow_user");
+          setLoading(false);
         }
+      } else {
+        setLoading(false);
       }
-      setLoading(false);
     }
   }, []);
 
   const handleLogout = () => {
     setUser(null);
+    setHasTeam(null);
     localStorage.removeItem("reviewflow_user");
     localStorage.removeItem('session_token');
     localStorage.removeItem("github_token");
-    localStorage.removeItem("cognito_token");
+  };
+
+  const handleOnboardingComplete = (teamId) => {
+    if (teamId) {
+      const updatedUser = { ...user, team_id: teamId };
+      setUser(updatedUser);
+      localStorage.setItem('reviewflow_user', JSON.stringify(updatedUser));
+    }
+    setHasTeam(true);
   };
 
   if (loading) {
@@ -69,6 +102,10 @@ function App() {
 
   if (!user) {
     return <Login />;
+  }
+
+  if (!hasTeam) {
+    return <Onboarding user={user} onComplete={handleOnboardingComplete} />
   }
 
   return <Dashboard user={user} onLogout={handleLogout} />;

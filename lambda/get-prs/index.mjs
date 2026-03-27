@@ -66,11 +66,37 @@ async function handlerFn(event) {
         paramIndex++;
     }
 
-    if (user.team_id) {
-        conditions.push(`p.team_id = $${paramIndex}`);
-        values.push(user.team_id);
-        paramIndex++;
+    // Get team_id — prefer JWT, fall back to database lookup
+    let teamId = user.team_id;
+    if (!teamId) {
+        const userResult = await dbPool.query(
+        'SELECT team_id FROM users WHERE user_id = $1',
+        [user.user_id]
+        );
+        teamId = userResult.rows[0]?.team_id || null;
     }
+
+    // No team = no PRs
+    if (!teamId) {
+        info('User has no team, returning empty results', { user_id: user.user_id });
+        return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ success: true, data: { prs: [], total: 0 } })
+        };
+    }
+
+    conditions.push(`p.team_id = $${paramIndex}`);
+    values.push(teamId);
+    paramIndex++;
+
+    info('Team filter applied', { 
+        jwt_team_id: user.team_id, 
+        db_team_id: teamId, 
+        conditions: conditions,
+        values: values
+    });
+
 
     const whereClause = conditions.length > 0
         ? `WHERE ${conditions.join(' AND ')}`
