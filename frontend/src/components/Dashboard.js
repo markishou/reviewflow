@@ -1,29 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { getHealth, getPrs } from "../api";
+import { getHealth, getPrs, getMyTeam } from "../api";
 import StatCard from "./StatCard";
 import PrCard from "./PrCard";
 import TeamPanel from "./TeamPanel";
 
-// Mock team data for now — the /api/users/me endpoint returns individual user data,
-// not team data. We'll use mock data for the team panel in the demo.
-const MOCK_TEAM = [
-  {
-    github_username: "markhou",
-    display_name: "Mark Hou",
-    pending_reviews: 1,
-    active_reviews: 1,
-    completed_today: 2,
-    expertise: ["backend", "database", "auth"],
-  },
-  {
-    github_username: "testreviewer",
-    display_name: "Test Reviewer",
-    pending_reviews: 1,
-    active_reviews: 0,
-    completed_today: 0,
-    expertise: ["backend", "auth", "database"],
-  },
-];
 
 function Dashboard({ user, onLogout }) {
   const [prs, setPrs] = useState([]);
@@ -32,6 +12,8 @@ function Dashboard({ user, onLogout }) {
   const [filter, setFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [healthStatus, setHealthStatus] = useState(null);
+  const [team, setTeam] = useState(null);
+  const [teamMembers, setTeamMembers] = useState([]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -53,6 +35,18 @@ function Dashboard({ user, onLogout }) {
           prErr.message,
         );
         setPrs([]);
+      }
+
+      // Try to fetch team data
+      try {
+        const teamRes = await getMyTeam();
+        const teamData = teamRes.data?.data?.team;
+        if (teamData) {
+          setTeam(teamData);
+          setTeamMembers(teamData.members || []);
+        }
+      } catch (teamErr) {
+        console.log('Could not fetch team:', teamErr.message);
       }
     } catch (err) {
       setError("Failed to connect to API: " + err.message);
@@ -165,9 +159,9 @@ function Dashboard({ user, onLogout }) {
             Review Dashboard
           </h1>
           <p className="text-sm text-rf-text-secondary">
-            ReviewFlow Team · {MOCK_TEAM.length} active reviewers
-            {healthStatus?.tables &&
-              ` · ${healthStatus.tables.length} DB tables`}
+            {team?.team_name || 'No Team'} · {teamMembers.length} active reviewer{teamMembers.length !== 1 ? 's' : ''}
+            {team?.repos && ` · ${team.repos.length} connected repo${team.repos.length !== 1 ? 's' : ''}`}
+            {healthStatus?.tables && ` · ${healthStatus.tables.length} DB tables`}
           </p>
         </div>
 
@@ -262,7 +256,7 @@ function Dashboard({ user, onLogout }) {
 
           {/* Right Sidebar */}
           <div>
-            <TeamPanel members={MOCK_TEAM} />
+            <TeamPanel members={teamMembers} />
 
             <h2 className="text-base font-semibold text-rf-text-primary mt-7 mb-4">
               Quick Actions
