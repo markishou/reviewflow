@@ -57,7 +57,7 @@ async function handlerFn(event) {
 
     const dbPool = await getPool();
     const path = event.path || '';
-    const method = event.httpmMethod;
+    const method = event.httpMethod;
 
     try {
         // POST /api/teams — Create a team
