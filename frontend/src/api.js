@@ -18,6 +18,21 @@ api.interceptors.request.use((config) => {
     return config;
 });
 
+// Auto-logout on expired/invalid token
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Token is expired or invalid — clear session and reload
+      localStorage.removeItem('reviewflow_user');
+      localStorage.removeItem('session_token');
+      localStorage.removeItem('github_token');
+      window.location.href = '/';
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Public endpoints (no auth required)
 export const getHealth = () => api.get('/api/health');
 
